@@ -1,9 +1,12 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.core.exceptions import ValidationError
+import re
 
 class Usuario(AbstractUser):
     foto_perfil = models.ImageField(upload_to='perfil/', blank=True, null=True)
     fecha_registro = models.DateTimeField(auto_now_add=True)
+    email = models.EmailField(unique=True)  # Esto asegura que el correo sea único
 
 class Habito(models.Model):
     usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='habitos')
