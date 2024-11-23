@@ -8,13 +8,18 @@ from rest_framework.views import APIView
 from rest_framework import status
 from django.conf import settings
 
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, action
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import authentication_classes, permission_classes
 from rest_framework.permissions import IsAuthenticated
+
 from rest_framework.authentication import TokenAuthentication
+from rest_framework.exceptions import ValidationError
+from datetime import date
+
+
 
 
 class UsuarioViewSet(viewsets.ModelViewSet):
@@ -24,6 +29,11 @@ class UsuarioViewSet(viewsets.ModelViewSet):
 class HabitoViewSet(viewsets.ModelViewSet):
     queryset = Habito.objects.all()
     serializer_class = HabitoSerializer
+    def get_queryset(self):
+            user_id = self.request.query_params.get('userId')  
+            if user_id:
+                return Habito.objects.filter(usuario=user_id)  
+            return super().get_queryset()
 
 class NotificacionViewSet(viewsets.ModelViewSet):
     queryset = Notificacion.objects.all()
@@ -36,6 +46,35 @@ class NotaViewSet(viewsets.ModelViewSet):
 class EjecucionViewSet(viewsets.ModelViewSet):
     queryset = Ejecucion.objects.all()
     serializer_class = EjecucionSerializer
+
+    @action(detail=False, methods=['post'])
+    def marcar_habito(self, request):
+        """
+        Marca o desmarca un hábito. Si el hábito ya tiene un registro para el día,
+        actualiza el campo 'completado'. Si no existe, crea uno nuevo.
+        """
+        habit_id = request.data.get('habito')
+        fecha = request.data.get('fecha')
+
+        # Validar si los datos son correctos
+        if not habit_id or not fecha:
+            return Response({"error": "Debe proporcionar un hábito y una fecha."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            habit = Habito.objects.get(id=habit_id)  # Verificamos que el hábito exista
+        except Habito.DoesNotExist:
+            return Response({"error": "El hábito no existe."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Verificamos si ya existe una ejecución para ese hábito y fecha
+        ejecucion, created = Ejecucion.objects.get_or_create(habito=habit, fecha=fecha)
+
+        # Si el registro ya existía, solo cambiamos el estado de 'completado'
+        ejecucion.completado = not ejecucion.completado  # Alternamos el estado
+        ejecucion.save()
+
+        # Serializamos la respuesta
+        serializer = self.get_serializer(ejecucion)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class EstadisticasViewSet(viewsets.ModelViewSet):
     queryset = Estadisticas.objects.all()
