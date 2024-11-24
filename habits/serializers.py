@@ -2,11 +2,10 @@ from rest_framework import serializers
 from .models import Usuario, Habito, Notificacion, Nota, Ejecucion, Estadisticas
 
 class UsuarioSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, required=True)
     class Meta:
         model = Usuario
         fields = ['id', 'username', 'email', 'foto_perfil', 'fecha_registro','password']
-
+"""
     def create(self, validated_data):
         password = validated_data.pop('password')
         user = Usuario(**validated_data)
@@ -22,7 +21,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
             instance.set_password(password)
         instance.save()
         return instance
-
+"""
 class HabitoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Habito
