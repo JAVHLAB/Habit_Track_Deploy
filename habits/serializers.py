@@ -43,6 +43,17 @@ class EjecucionSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class EstadisticasSerializer(serializers.ModelSerializer):
+    habito_nombre = serializers.CharField(source='habito.nombre', read_only=True)  # Nombre del hábito
+
     class Meta:
         model = Estadisticas
-        fields = '__all__'
+        fields = ['habito', 'habito_nombre', 'dias_transcurridos', 'dias_completados', 'efectividad']
+"""
+class EstadisticasSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Estadisticas
+        #fields = '__all__'
+
+        fields = ['habito', 'habito_nombre', 'efectividad']
+"""
+

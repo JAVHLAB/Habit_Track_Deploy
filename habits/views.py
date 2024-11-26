@@ -18,7 +18,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.exceptions import ValidationError
 from datetime import date
-
+from django.db.models import Min
+from datetime import timedelta
 
 
 
@@ -29,11 +30,38 @@ class UsuarioViewSet(viewsets.ModelViewSet):
 class HabitoViewSet(viewsets.ModelViewSet):
     queryset = Habito.objects.all()
     serializer_class = HabitoSerializer
+    def create(self, request, *args, **kwargs):
+        data = request.data
+
+        # Si recordatorio es True y hora_recordatorio no se establece
+        if data.get("recordatorio") and not data.get("hora_recordatorio"):
+            rango_tiempo_inicio = data.get("rango_tiempo_inicio")
+            if rango_tiempo_inicio:
+                # Restar 10 minutos al rango_tiempo_inicio
+                from datetime import datetime
+                rango_tiempo_inicio_dt = datetime.strptime(rango_tiempo_inicio, "%H:%M")
+                hora_recordatorio_dt = rango_tiempo_inicio_dt - timedelta(minutes=10)
+                data["hora_recordatorio"] = hora_recordatorio_dt.strftime("%H:%M")
+
+        # Serializar y validar los datos
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+
+        # Guardar el objeto
+        self.perform_create(serializer)
+
+        # Retornar respuesta
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+
+    """
     def get_queryset(self):
             user_id = self.request.query_params.get('userId')  
             if user_id:
                 return Habito.objects.filter(usuario=user_id)  
             return super().get_queryset()
+    """
 
 class NotificacionViewSet(viewsets.ModelViewSet):
     queryset = Notificacion.objects.all()
@@ -65,12 +93,39 @@ class EjecucionViewSet(viewsets.ModelViewSet):
         except Habito.DoesNotExist:
             return Response({"error": "El hábito no existe."}, status=status.HTTP_404_NOT_FOUND)
 
+        
         # Verificamos si ya existe una ejecución para ese hábito y fecha
         ejecucion, created = Ejecucion.objects.get_or_create(habito=habit, fecha=fecha)
+
+        self.actualizar_estadisticas(habit)
 
         # Serializamos la respuesta
         serializer = self.get_serializer(ejecucion)
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    def actualizar_estadisticas(self, habit):
+        """
+        Calcula y actualiza las estadísticas del hábito.
+        """
+        # Obtener todas las ejecuciones del hábito
+        ejecuciones = Ejecucion.objects.filter(habito=habit, completado=False).order_by('fecha')
+
+        if ejecuciones.exists():
+            # Calcular estadísticas
+            fecha_mas_antigua = ejecuciones.aggregate(Min('fecha'))['fecha__min']
+            dias_transcurridos = (date.today() - fecha_mas_antigua).days + 1
+            dias_completados = ejecuciones.count()
+            efectividad = dias_completados / dias_transcurridos if dias_transcurridos > 0 else 0
+
+            # Actualizar o crear estadísticas
+            Estadisticas.objects.update_or_create(
+                habito=habit,
+                defaults={
+                    'dias_transcurridos': dias_transcurridos,
+                    'dias_completados': dias_completados,
+                    'efectividad': efectividad,
+                }
+            )
 
 class EstadisticasViewSet(viewsets.ModelViewSet):
     queryset = Estadisticas.objects.all()

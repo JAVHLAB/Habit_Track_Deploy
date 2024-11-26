@@ -28,6 +28,7 @@ class Notificacion(models.Model):
     tipo = models.CharField(max_length=50)
     fecha_envio = models.DateTimeField()
     mensaje = models.TextField()
+    es_random = models.BooleanField(default=False)
 
 class Nota(models.Model):
     habito = models.ForeignKey(Habito, on_delete=models.CASCADE, related_name='notas')
