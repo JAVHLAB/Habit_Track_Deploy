@@ -30,6 +30,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
 class HabitoViewSet(viewsets.ModelViewSet):
     queryset = Habito.objects.all()
     serializer_class = HabitoSerializer
+
     def create(self, request, *args, **kwargs):
         data = request.data
 
@@ -55,13 +56,13 @@ class HabitoViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
-    """
+    
     def get_queryset(self):
             user_id = self.request.query_params.get('userId')  
             if user_id:
                 return Habito.objects.filter(usuario=user_id)  
             return super().get_queryset()
-    """
+    
 
 class NotificacionViewSet(viewsets.ModelViewSet):
     queryset = Notificacion.objects.all()
@@ -127,9 +128,75 @@ class EjecucionViewSet(viewsets.ModelViewSet):
                 }
             )
 
+    @action(detail=False, methods=['get'])
+    def filtrar_por_usuario_y_fecha(self, request):
+            """
+            Filtra las ejecuciones de un usuario por fecha.
+            """
+            user_id = request.query_params.get('userId')
+            fecha = request.query_params.get('fecha')
+
+            if not user_id or not fecha:
+                return Response({"error": "userId y fecha son requeridos."}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                ejecuciones = Ejecucion.objects.filter(
+                    habito__usuario_id=user_id,  # Asumiendo que "usuario" está relacionado con el "habito"
+                    fecha=fecha
+                )
+            except Ejecucion.DoesNotExist:
+                return Response({"error": "No se encontraron ejecuciones."}, status=status.HTTP_404_NOT_FOUND)
+
+            # Serializar los resultados
+            serializer = EjecucionSerializer(ejecuciones, many=True)
+            return Response(serializer.data)    
+
+
 class EstadisticasViewSet(viewsets.ModelViewSet):
     queryset = Estadisticas.objects.all()
     serializer_class = EstadisticasSerializer
+
+    @action(detail=False, methods=['get'])
+    def filtrar_por_usuario_y_fecha(self, request):
+        """
+        Filtra las ejecuciones y las estadísticas de un usuario por fecha.
+        """
+        user_id = request.query_params.get('userId')
+        fecha = request.query_params.get('fecha')
+
+        if not user_id or not fecha:
+            return Response({"error": "userId y fecha son requeridos."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Filtrar las ejecuciones del usuario y la fecha
+        ejecuciones = Ejecucion.objects.filter(
+            habito__usuario_id=user_id,  # Asumiendo que "usuario" está relacionado con el "habito"
+            fecha=fecha
+        )
+
+        # Filtrar las estadísticas del usuario para los hábitos de ese día
+        estadisticas = Estadisticas.objects.filter(
+            habito__usuario_id=user_id,  # Relacionar con el usuario
+            habito__ejecuciones__fecha=fecha  # Asegurar que el hábito tiene ejecuciones en esa fecha
+        )
+
+        if not ejecuciones and not estadisticas:
+            return Response({
+                "ejecuciones": [],
+                "estadisticas": []
+            })
+
+
+        # Serializar las ejecuciones
+        ejecuciones_serializer = EjecucionSerializer(ejecuciones, many=True)
+
+        # Serializar las estadísticas
+        estadisticas_serializer = EstadisticasSerializer(estadisticas, many=True)
+
+        # Devolver los resultados
+        return Response({
+            "ejecuciones": ejecuciones_serializer.data,
+            "estadisticas": estadisticas_serializer.data
+        })
 
 
 # Correo de verificación
